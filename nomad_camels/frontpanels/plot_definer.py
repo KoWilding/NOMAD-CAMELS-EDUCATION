@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QLabel,
@@ -33,13 +34,15 @@ from lmfit import models
 from nomad_camels.gui.plot_definer import Ui_Plot_Definer
 from nomad_camels.gui.plot_definer_2d import Ui_Plot_Definer_2D
 from nomad_camels.gui.fit_definer import Ui_Fit_Definer
+from nomad_camels.ui_widgets.variable_tool_tip_box import Variable_Box
 
 from nomad_camels.ui_widgets.add_remove_table import AddRemoveTable
 from nomad_camels.utility import variables_handling
 from nomad_camels.utility.fit_variable_renaming import replace_name
 
 # List of available plot types
-plot_types = ["X-Y plot", "Value-List", "2D plot"]
+plot_types = ["X-Y plot", "Value-List",
+              "2D plot", "Single Value", "Gauge", "Image Display"]
 
 # Get a dictionary of available lmfit models and remove the "Expression" model if present.
 models_names = dict(models.lmfit_models)
@@ -140,6 +143,12 @@ class Plot_Info:
         checkbox_manual_plot_position=False,
         checkbox_show_in_browser=False,
         browser_port=8050,
+        font_size=48,
+        unit="",
+        min_value=None,
+        max_value=None,
+        step=None,
+        image_path="",
     ):
         # Initialize plot type and axis definitions
         self.plt_type = plt_type
@@ -170,7 +179,14 @@ class Plot_Info:
         self.checkbox_manual_plot_position = checkbox_manual_plot_position
         self.checkbox_show_in_browser = checkbox_show_in_browser
         self.browser_port = browser_port
+        self.font_size = font_size
+        self.unit = unit
 
+        self.min_value = min_value
+        self.max_value = max_value
+        self.step = step
+
+        self.image_path = image_path
         # Generate a human-readable name based on available data.
         self.update_name()
 
@@ -206,6 +222,18 @@ class Plot_Info:
                 )
             elif self.z_axis:
                 self.name = f"{self.z_axis} 2D"
+        elif self.plt_type == "Single Value":
+            if self.y_axes["formula"]:
+                self.name = self.y_axes["formula"][0]
+            else:
+                self.name = "Single Value"
+        elif self.plt_type == "Gauge":
+            if self.y_axes["formula"]:
+                self.name = self.y_axes["formula"][0]
+            else:
+                self.name = "Gauge"
+        elif self.plt_type == "Image Display":
+            self.name = self.title or "Image Display"
 
     def get_fit_vars(self, stream=""):
         """
@@ -471,6 +499,13 @@ class Plot_Definer_Widget(QWidget):
             plot_def = Single_Plot_Definer_List(plot_dat, self)
         elif plot_dat.plt_type == "2D plot":
             plot_def = Single_Plot_Definer_2D(plot_dat, self)
+        elif plot_dat.plt_type == "Single Value":
+            plot_def = Single_Plot_Definer_SingleValue(plot_dat, self)
+        elif plot_dat.plt_type == "Gauge":
+            plot_def = Single_Plot_Definer_Gauge(plot_dat, self)
+        elif plot_dat.plt_type == "Image Display":
+            plot_def = Single_Plot_Definer_Image_Display(plot_dat, self)
+
         else:
             plot_def = QLabel("Not implemented yet!")
 
@@ -673,6 +708,387 @@ class Single_Plot_Definer_List(Single_Plot_Definer):
             raise ValueError("Plot width is not set, but height is.")
 
         # Update the plot name based on the latest data.
+        self.plot_data.update_name()
+        return super().get_data()
+
+
+class Single_Plot_Definer_SingleValue(Single_Plot_Definer):
+    """
+    Widget to configure a "Single Value" plot: a single value is displayed
+    in a large font.
+    """
+
+    def __init__(self, plot_data: Plot_Info, parent=None):
+        super().__init__(plot_data, parent)
+
+        if not self.plot_data.y_axes["formula"]:
+            self.plot_data.y_axes["formula"].append("")
+            self.plot_data.y_axes["axis"] = [1]
+
+        label_value = QLabel("Value / channel:", self)
+        self.lineEdit_value = Variable_Box(self)
+        self.lineEdit_value.setText(self.plot_data.y_axes["formula"][0])
+
+        label_title = QLabel("Title:", self)
+        self.lineEdit_title = QLineEdit(self)
+        self.lineEdit_title.setText(self.plot_data.title)
+
+        label_font_size = QLabel("Font size:", self)
+        self.lineEdit_font_size = QLineEdit(self)
+        self.lineEdit_font_size.setText(str(self.plot_data.font_size))
+
+        label_unit = QLabel("Unit:", self)
+
+        self.lineEdit_unit = QLineEdit(self)
+        self.lineEdit_unit.setText(self.plot_data.unit)
+
+        layout = QGridLayout()
+        layout.addWidget(label_value, 0, 0)
+        layout.addWidget(self.lineEdit_value, 0, 1, 1, 3)
+        layout.addWidget(label_title, 1, 0)
+        layout.addWidget(self.lineEdit_title, 1, 1, 1, 2)
+        layout.addWidget(label_unit, 1, 3)
+        layout.addWidget(self.lineEdit_unit, 1, 4)
+        layout.addWidget(label_font_size, 2, 0)
+        layout.addWidget(self.lineEdit_font_size, 2, 1)
+
+        line = QFrame(self)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line, 3, 0, 1, 4)
+
+        label_top_left_x = QLabel("Top Left X:", self)
+        self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_y = QLabel("Top Left Y:", self)
+        self.lineEdit_top_left_y = QLineEdit(self)
+        label_plot_width = QLabel("Plot Width:", self)
+        self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_height = QLabel("Plot Height:", self)
+        self.lineEdit_plot_height = QLineEdit(self)
+
+        layout.addWidget(label_top_left_x, 11, 0)
+        layout.addWidget(self.lineEdit_top_left_x, 11, 1)
+        layout.addWidget(label_plot_width, 11, 2)
+        layout.addWidget(self.lineEdit_plot_width, 11, 3)
+        layout.addWidget(label_top_left_y, 12, 0)
+        layout.addWidget(self.lineEdit_top_left_y, 12, 1)
+        layout.addWidget(label_plot_height, 12, 2)
+        layout.addWidget(self.lineEdit_plot_height, 12, 3)
+
+        self.setLayout(layout)
+        self.load_data()
+        self.plot_data.update_name()
+
+    def load_data(self):
+        if hasattr(self.plot_data, "top_left_x"):
+            self.lineEdit_top_left_x.setText(str(self.plot_data.top_left_x))
+        if hasattr(self.plot_data, "top_left_y"):
+            self.lineEdit_top_left_y.setText(str(self.plot_data.top_left_y))
+        if hasattr(self.plot_data, "plot_width"):
+            self.lineEdit_plot_width.setText(str(self.plot_data.plot_width))
+        if hasattr(self.plot_data, "plot_height"):
+            self.lineEdit_plot_height.setText(str(self.plot_data.plot_height))
+
+    def get_data(self):
+        value = self.lineEdit_value.text()
+        if check_quotation_backslash(value) is False:
+            raise ValueError("Value contains invalid characters (' \" ` \\).")
+        self.plot_data.y_axes["formula"] = [value]
+        self.plot_data.y_axes["axis"] = [1]
+
+        self.plot_data.title = self.lineEdit_title.text()
+        if re.search(r"[\\'\"`]", self.plot_data.title):
+            raise ValueError("Title contains invalid characters (' \" ` \\).")
+
+        self.plot_data.font_size = parse_int_field(
+            self.lineEdit_font_size.text(), 8, fallback=48
+        )
+
+        self.plot_data.top_left_x = parse_int_field(
+            self.lineEdit_top_left_x.text(), 0)
+        self.plot_data.top_left_y = parse_int_field(
+            self.lineEdit_top_left_y.text(), 0)
+        self.plot_data.plot_width = parse_int_field(
+            self.lineEdit_plot_width.text(), 300
+        )
+        self.plot_data.plot_height = parse_int_field(
+            self.lineEdit_plot_height.text(), 200
+        )
+
+        if self.lineEdit_top_left_x.text() and not self.lineEdit_top_left_y.text():
+            raise ValueError("Plot y position is not set, but x position is.")
+        if self.lineEdit_top_left_y.text() and not self.lineEdit_top_left_x.text():
+            raise ValueError("Plot x position is not set, but y position is.")
+        if self.lineEdit_plot_width.text() and not self.lineEdit_plot_height.text():
+            raise ValueError("Plot height is not set, but width is.")
+        if self.lineEdit_plot_height.text() and not self.lineEdit_plot_width.text():
+            raise ValueError("Plot width is not set, but height is.")
+        self.plot_data.unit = self.lineEdit_unit.text()
+        if re.search(r"[\\'\"`]", self.plot_data.unit):
+            raise ValueError("Unit contains invalid characters (' \" ` \\).")
+
+        self.plot_data.update_name()
+        return super().get_data()
+
+
+class Single_Plot_Definer_Gauge(Single_Plot_Definer):
+    """
+    Widget to configure a "Gauge" plot: a horizontal scale with a marker
+    showing the current value.
+    """
+
+    def __init__(self, plot_data: Plot_Info, parent=None):
+        super().__init__(plot_data, parent)
+
+        if not self.plot_data.y_axes["formula"]:
+            self.plot_data.y_axes["formula"].append("")
+            self.plot_data.y_axes["axis"] = [1]
+
+        label_value = QLabel("Value / channel:", self)
+        self.lineEdit_value = Variable_Box(self)
+        self.lineEdit_value.setText(self.plot_data.y_axes["formula"][0])
+
+        label_title = QLabel("Title:", self)
+        self.lineEdit_title = QLineEdit(self)
+        self.lineEdit_title.setText(self.plot_data.title)
+
+        label_unit = QLabel("Unit:", self)
+        self.lineEdit_unit = QLineEdit(self)
+        self.lineEdit_unit.setText(self.plot_data.unit)
+
+        label_min = QLabel("Min:", self)
+        self.lineEdit_min = QLineEdit(self)
+        self.lineEdit_min.setText(
+            "" if self.plot_data.min_value is None else str(
+                self.plot_data.min_value)
+        )
+
+        label_max = QLabel("Max :", self)
+        self.lineEdit_max = QLineEdit(self)
+        self.lineEdit_max.setText(
+            "" if self.plot_data.max_value is None else str(
+                self.plot_data.max_value)
+        )
+
+        label_step = QLabel("Schritt :", self)
+        self.lineEdit_step = QLineEdit(self)
+        self.lineEdit_step.setText(
+            "" if self.plot_data.step is None else str(self.plot_data.step)
+        )
+
+        layout = QGridLayout()
+        layout.addWidget(label_value, 0, 0)
+        layout.addWidget(self.lineEdit_value, 0, 1, 1, 3)
+        layout.addWidget(label_title, 1, 0)
+        layout.addWidget(self.lineEdit_title, 1, 1)
+        layout.addWidget(label_unit, 1, 2)
+        layout.addWidget(self.lineEdit_unit, 1, 3)
+        layout.addWidget(label_min, 2, 0)
+        layout.addWidget(self.lineEdit_min, 2, 1)
+        layout.addWidget(label_max, 2, 2)
+        layout.addWidget(self.lineEdit_max, 2, 3)
+        layout.addWidget(label_step, 3, 0)
+        layout.addWidget(self.lineEdit_step, 3, 1)
+
+        line = QFrame(self)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line, 4, 0, 1, 4)
+
+        label_top_left_x = QLabel("Top Left X:", self)
+        self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_y = QLabel("Top Left Y:", self)
+        self.lineEdit_top_left_y = QLineEdit(self)
+        label_plot_width = QLabel("Plot Width:", self)
+        self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_height = QLabel("Plot Height:", self)
+        self.lineEdit_plot_height = QLineEdit(self)
+
+        layout.addWidget(label_top_left_x, 11, 0)
+        layout.addWidget(self.lineEdit_top_left_x, 11, 1)
+        layout.addWidget(label_plot_width, 11, 2)
+        layout.addWidget(self.lineEdit_plot_width, 11, 3)
+        layout.addWidget(label_top_left_y, 12, 0)
+        layout.addWidget(self.lineEdit_top_left_y, 12, 1)
+        layout.addWidget(label_plot_height, 12, 2)
+        layout.addWidget(self.lineEdit_plot_height, 12, 3)
+
+        self.setLayout(layout)
+        self.load_data()
+        self.plot_data.update_name()
+
+    def load_data(self):
+        if hasattr(self.plot_data, "top_left_x"):
+            self.lineEdit_top_left_x.setText(str(self.plot_data.top_left_x))
+        if hasattr(self.plot_data, "top_left_y"):
+            self.lineEdit_top_left_y.setText(str(self.plot_data.top_left_y))
+        if hasattr(self.plot_data, "plot_width"):
+            self.lineEdit_plot_width.setText(str(self.plot_data.plot_width))
+        if hasattr(self.plot_data, "plot_height"):
+            self.lineEdit_plot_height.setText(str(self.plot_data.plot_height))
+
+    def get_data(self):
+        value = self.lineEdit_value.text()
+        if check_quotation_backslash(value) is False:
+            raise ValueError("Value contains invalid characters (' \" ` \\).")
+        self.plot_data.y_axes["formula"] = [value]
+        self.plot_data.y_axes["axis"] = [1]
+
+        self.plot_data.title = self.lineEdit_title.text()
+        if re.search(r"[\\'\"`]", self.plot_data.title):
+            raise ValueError("Title contains invalid characters (' \" ` \\).")
+
+        self.plot_data.unit = self.lineEdit_unit.text()
+        if re.search(r"[\\'\"`]", self.plot_data.unit):
+            raise ValueError("Unit contains invalid characters (' \" ` \\).")
+
+        self.plot_data.min_value = self._parse_optional_float(
+            self.lineEdit_min.text())
+        self.plot_data.max_value = self._parse_optional_float(
+            self.lineEdit_max.text())
+        self.plot_data.step = self._parse_optional_float(
+            self.lineEdit_step.text())
+
+        if (
+            self.plot_data.min_value is not None
+            and self.plot_data.max_value is not None
+            and self.plot_data.min_value >= self.plot_data.max_value
+        ):
+            raise ValueError("Min must be smaller than Max.")
+
+        self.plot_data.top_left_x = parse_int_field(
+            self.lineEdit_top_left_x.text(), 0)
+        self.plot_data.top_left_y = parse_int_field(
+            self.lineEdit_top_left_y.text(), 0)
+        self.plot_data.plot_width = parse_int_field(
+            self.lineEdit_plot_width.text(), 300
+        )
+        self.plot_data.plot_height = parse_int_field(
+            self.lineEdit_plot_height.text(), 150
+        )
+
+        if self.lineEdit_top_left_x.text() and not self.lineEdit_top_left_y.text():
+            raise ValueError("Plot y position is not set, but x position is.")
+        if self.lineEdit_top_left_y.text() and not self.lineEdit_top_left_x.text():
+            raise ValueError("Plot x position is not set, but y position is.")
+        if self.lineEdit_plot_width.text() and not self.lineEdit_plot_height.text():
+            raise ValueError("Plot height is not set, but width is.")
+        if self.lineEdit_plot_height.text() and not self.lineEdit_plot_width.text():
+            raise ValueError("Plot width is not set, but height is.")
+
+        self.plot_data.update_name()
+        return super().get_data()
+
+    @staticmethod
+    def _parse_optional_float(text):
+        text = text.strip()
+        if not text or text.lower() == "none":
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+
+class Single_Plot_Definer_Image_Display(Single_Plot_Definer):
+    """
+    Widget to configure an "Image Display" plot: displays a PNG (or other image)
+    loaded from a given file path.
+    """
+
+    def __init__(self, plot_data: Plot_Info, parent=None):
+        super().__init__(plot_data, parent)
+
+        label_path = QLabel("Image path:", self)
+        self.lineEdit_path = QLineEdit(self)
+        self.lineEdit_path.setText(self.plot_data.image_path)
+        self.pushButton_browse = QPushButton("Browse...", self)
+        self.pushButton_browse.clicked.connect(self.browse_file)
+
+        label_title = QLabel("Title:", self)
+        self.lineEdit_title = QLineEdit(self)
+        self.lineEdit_title.setText(self.plot_data.title)
+
+        layout = QGridLayout()
+        layout.addWidget(label_path, 0, 0)
+        layout.addWidget(self.lineEdit_path, 0, 1, 1, 2)
+        layout.addWidget(self.pushButton_browse, 0, 3)
+        layout.addWidget(label_title, 1, 0)
+        layout.addWidget(self.lineEdit_title, 1, 1, 1, 3)
+
+        line = QFrame(self)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line, 3, 0, 1, 4)
+
+        label_top_left_x = QLabel("Top Left X:", self)
+        self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_y = QLabel("Top Left Y:", self)
+        self.lineEdit_top_left_y = QLineEdit(self)
+        label_plot_width = QLabel("Plot Width:", self)
+        self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_height = QLabel("Plot Height:", self)
+        self.lineEdit_plot_height = QLineEdit(self)
+
+        layout.addWidget(label_top_left_x, 11, 0)
+        layout.addWidget(self.lineEdit_top_left_x, 11, 1)
+        layout.addWidget(label_plot_width, 11, 2)
+        layout.addWidget(self.lineEdit_plot_width, 11, 3)
+        layout.addWidget(label_top_left_y, 12, 0)
+        layout.addWidget(self.lineEdit_top_left_y, 12, 1)
+        layout.addWidget(label_plot_height, 12, 2)
+        layout.addWidget(self.lineEdit_plot_height, 12, 3)
+
+        self.setLayout(layout)
+        self.load_data()
+        self.plot_data.update_name()
+        self.livePlot = lambda name, doc: None
+
+    def browse_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Image", self.lineEdit_path.text() or "",
+            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+        )
+        if path:
+            self.lineEdit_path.setText(path)
+
+    def load_data(self):
+        if hasattr(self.plot_data, "top_left_x"):
+            self.lineEdit_top_left_x.setText(str(self.plot_data.top_left_x))
+        if hasattr(self.plot_data, "top_left_y"):
+            self.lineEdit_top_left_y.setText(str(self.plot_data.top_left_y))
+        if hasattr(self.plot_data, "plot_width"):
+            self.lineEdit_plot_width.setText(str(self.plot_data.plot_width))
+        if hasattr(self.plot_data, "plot_height"):
+            self.lineEdit_plot_height.setText(str(self.plot_data.plot_height))
+
+    def get_data(self):
+        self.plot_data.image_path = self.lineEdit_path.text()
+
+        self.plot_data.title = self.lineEdit_title.text()
+        if re.search(r"[\\'\"`]", self.plot_data.title):
+            raise ValueError("Title contains invalid characters (' \" ` \\).")
+
+        self.plot_data.top_left_x = parse_int_field(
+            self.lineEdit_top_left_x.text(), 0)
+        self.plot_data.top_left_y = parse_int_field(
+            self.lineEdit_top_left_y.text(), 0)
+        self.plot_data.plot_width = parse_int_field(
+            self.lineEdit_plot_width.text(), 300
+        )
+        self.plot_data.plot_height = parse_int_field(
+            self.lineEdit_plot_height.text(), 300
+        )
+
+        if self.lineEdit_top_left_x.text() and not self.lineEdit_top_left_y.text():
+            raise ValueError("Plot y position is not set, but x position is.")
+        if self.lineEdit_top_left_y.text() and not self.lineEdit_top_left_x.text():
+            raise ValueError("Plot x position is not set, but y position is.")
+        if self.lineEdit_plot_width.text() and not self.lineEdit_plot_height.text():
+            raise ValueError("Plot height is not set, but width is.")
+        if self.lineEdit_plot_height.text() and not self.lineEdit_plot_width.text():
+            raise ValueError("Plot width is not set, but height is.")
+
         self.plot_data.update_name()
         return super().get_data()
 
