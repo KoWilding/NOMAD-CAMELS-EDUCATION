@@ -45,6 +45,9 @@ from nomad_camels.utility.fit_variable_renaming import replace_name
 from nomad_camels.main_classes.plot_widget import LiveFit_Eva
 from nomad_camels.utility.plot_placement import place_widget
 
+from nomad_camels.utility import variables_handling
+from PySide6.QtGui import QFont
+
 
 # recognized by pyqtgraph: r, g, b, c, m, y, k, w
 dark_mode_colors = ["w", "r", (0, 100, 255), "g", "c", "m", "y", "k"]
@@ -107,6 +110,25 @@ def activate_dark_mode():
     pg.setConfigOptions(background="k", foreground="w")
     colors = dark_mode_colors
 
+def _plot_pref(key):
+    """Read a plot-appearance preference; returns None if unset/unavailable."""
+    try:
+        return variables_handling.preferences.get(key)
+    except Exception:
+        return None
+
+
+def _effective_fontsize(specific_key):
+    """Specific override, falling back to the general X-Y font size pref."""
+    val = _plot_pref(specific_key)
+    if val is not None:
+        return val
+    return _plot_pref("plot_xy_fontsize_general")
+
+
+def _label_style_kwargs(specific_key):
+    size = _effective_fontsize(specific_key)
+    return {"font-size": f"{int(size)}pt"} if size else {}
 
 class ListDeque_skip:
     def __init__(self, iterable=None, maxlen=None, skip_n_points=0):
@@ -420,6 +442,16 @@ class PlotWidget(QWidget):
         self.pushButton_clear = QPushButton("Clear Plot")
         self.pushButton_clear.clicked.connect(self.clear_plot)
         self.plot_options = Plot_Options(self, self.livePlot)
+
+        self.plot_options = Plot_Options(self, self.livePlot)
+        checkbox_size = _effective_fontsize("plot_xy_fontsize_checkbox")
+        if checkbox_size:
+            font = self.plot_options.font()
+            font.setPointSize(int(checkbox_size))
+            self.plot_options.setFont(font)
+
+
+
         self.plot_options.checkBox_log_x.setChecked(logX)
         self.plot_options.checkBox_log_y.setChecked(logY)
         self.plot_options.checkBox_log_y2.setChecked(logY2)
@@ -769,6 +801,26 @@ class LivePlot(QObject, CallbackBase):
         self.__setup_event = threading.Event()
         self.use_abs = {"x": False, "y": False, "y2": False}
         self.setup_is_done = False
+        self.plotItem.setLabel(
+            "bottom",
+            xlabel or x_name or "sequence #",
+            **_label_style_kwargs("plot_xy_fontsize_axis_labels"),
+        )
+        self.plotItem.setLabel(
+            "left", ylabel or self.ys[0], **_label_style_kwargs("plot_xy_fontsize_axis_labels")
+        )
+        if title:
+            title_size = _effective_fontsize("plot_xy_fontsize_title")
+            if title_size:
+                self.plotItem.setTitle(title, size=f"{int(title_size)}pt")
+            else:
+                self.plotItem.setTitle(title)
+        tick_size = _effective_fontsize("plot_xy_fontsize_ticklabels")
+        if tick_size:
+            tick_font = QFont()
+            tick_font.setPointSize(int(tick_size))
+            self.plotItem.getAxis("bottom").setStyle(tickFont=tick_font)
+            self.plotItem.getAxis("left").setStyle(tickFont=tick_font)
 
         def setup():
             # this is the setup function, it is called when the first event is received
@@ -880,6 +932,20 @@ class LivePlot(QObject, CallbackBase):
         self.legend = pg.LegendItem(
             offset=(1, 1), horSpacing=20, verSpacing=-5, pen="w" if dark_mode else "k"
         )
+
+        self.legend = pg.LegendItem(
+            offset=(1, 1), horSpacing=20, verSpacing=-5, pen="w" if dark_mode else "k"
+        )
+        legend_size = _effective_fontsize("plot_xy_fontsize_legend")
+        if legend_size:
+            try:
+                self.legend.setLabelTextSize(f"{int(legend_size)}pt")
+            except AttributeError:
+                pass
+        self.legend.setParentItem(self.plotItem.vb)
+
+
+
         self.legend.setParentItem(self.plotItem.vb)
         for plot in self.current_plots.values():
             self.legend.addItem(plot, plot.name())
@@ -1141,14 +1207,21 @@ class LiveFitPlot(CallbackBase):
 
         self.__setup = setup
 
+
     def start(self, doc):
         self.__setup()
         self.x_data, self.y_data = [], []
         self.color = colors[self.parent_plot.n_plots % len(colors)]
+        fit_linestyle_name = _plot_pref("plot_xy_fit_linestyle") or "solid"
+        fit_linewidth = _plot_pref("plot_xy_fit_linewidth") or 2
         self.plot = pg.PlotDataItem(
             [],
             [],
-            pen=pg.mkPen(color=self.color, width=2, style=linestyles["solid"]),
+            pen=pg.mkPen(
+                color=self.color,
+                width=fit_linewidth,
+                style=linestyles.get(fit_linestyle_name, linestyles["solid"]),
+            ),
             name=self.livefit.name,
             symbol=None,
             symbolPen=pg.mkPen(color=self.color),
@@ -1187,6 +1260,8 @@ class LiveFitPlot(CallbackBase):
             self.viewbox.removeItem(text)
         self.text_objects = []
 
+
+
     def update_plot(self):
         self.plot.setData(self.x_data, self.y_data)
         if self.display_values:
@@ -1204,6 +1279,7 @@ class LiveFitPlot(CallbackBase):
             if self.line_position is None:
                 self.line_position = self.parent_plot.line_number
                 self.parent_plot.line_number += len(variables)
+            fit_result_size = _effective_fontsize("plot_xy_fontsize_fit_result")   # <-- NEU, hier einfügen
             for i, (name, value) in enumerate(vals.items()):
                 if name not in variables:
                     continue
@@ -1214,10 +1290,16 @@ class LiveFitPlot(CallbackBase):
                     )
                 else:
                     text = pg.TextItem(f"{name}: {value:.3e}", color=self.color)
+                if fit_result_size:                                                 # <-- NEU, ab hier
+                    font = text.textItem.font()
+                    font.setPointSize(int(fit_result_size))
+                    text.textItem.setFont(font)                                     # <-- NEU, bis hier
                 text.setParentItem(self.plotItem.vb)
                 text.setPos(5, (i + self.line_position) * 20 + y0)
                 self.text_objects.append(text)
         self.parent_plot.update_plot()
+
+
 
     def __call__(self, name, doc, *, escape=False):
         if not escape and self.__teleporter is not None:

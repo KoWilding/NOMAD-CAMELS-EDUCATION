@@ -15,6 +15,7 @@ from nomad_camels import graphics
 
 from PySide6.QtCore import Signal as pySignal
 
+from nomad_camels.utility import variables_handling
 
 class single_value_plot(QWidget):
     """A widget that displays a single evaluated value in large text."""
@@ -40,6 +41,11 @@ class single_value_plot(QWidget):
         **kwargs,
     ):
         super().__init__(parent=parent)
+        if font_size is None:
+            global_font_size = variables_handling.preferences.get("plot_single_value_fontsize")
+            font_size = global_font_size or 48
+
+
         self.name_label = QLabel(title)  # voher value
         self.name_label.setAlignment(Qt.AlignCenter)
         name_font = QFont()

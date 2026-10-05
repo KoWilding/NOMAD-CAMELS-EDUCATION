@@ -1,4 +1,7 @@
-from PySide6.QtWidgets import QDialog, QStyleFactory, QMessageBox, QApplication
+from PySide6.QtWidgets import (
+    QDialog, QStyleFactory, QMessageBox, QApplication,
+    QWidget, QGridLayout, QLabel, QLineEdit, QComboBox, QFrame,
+)
 from PySide6.QtCore import Qt, QCoreApplication
 from PySide6.QtGui import QKeyEvent
 
@@ -240,6 +243,7 @@ class Settings_Window(Ui_settings_window, QDialog):
         self.pushButton_API_docu.setToolTip(
             "If the page does not load, accept your settings and try again. The API server might not be started yet."
         )
+        self.build_plots_tab(settings)
 
     def autosave_run_change(self):
         on = self.checkBox_autosave_run.isChecked()
@@ -341,6 +345,42 @@ class Settings_Window(Ui_settings_window, QDialog):
             "new_file_every_x_hours": self.checkBox_new_meas_hours.isChecked(),
             "new_file_every_x_hours_value": self.spinBox_new_meas_hours.value(),
             "nested_data": self.checkBox_nested_data_structure.isChecked(),
+                        "nested_data": self.checkBox_nested_data_structure.isChecked(),
+            "plot_xy_fontsize_general": self._parse_optional_number(
+                self.lineEdit_plot_general_fontsize.text()
+            ),
+            "plot_xy_fontsize_checkbox": self._parse_optional_number(
+                self.lineEdit_plot_checkbox_fontsize.text()
+            ),
+            "plot_xy_fontsize_axis_labels": self._parse_optional_number(
+                self.lineEdit_plot_axis_fontsize.text()
+            ),
+            "plot_xy_fontsize_title": self._parse_optional_number(
+                self.lineEdit_plot_title_fontsize.text()
+            ),
+            "plot_xy_fontsize_ticklabels": self._parse_optional_number(
+                self.lineEdit_plot_ticklabel_fontsize.text()
+            ),
+            "plot_xy_fontsize_legend": self._parse_optional_number(
+                self.lineEdit_plot_legend_fontsize.text()
+            ),
+            "plot_xy_fontsize_fit_result": self._parse_optional_number(
+                self.lineEdit_plot_fitresult_fontsize.text()
+            ),
+            "plot_xy_fit_linestyle": (
+                ""
+                if self.comboBox_plot_fit_linestyle.currentText() == "default"
+                else self.comboBox_plot_fit_linestyle.currentText()
+            ),
+            "plot_xy_fit_linewidth": self._parse_optional_number(
+                self.lineEdit_plot_fit_linewidth.text(), is_float=True
+            ),
+            "plot_gauge_fontsize": self._parse_optional_number(
+                self.lineEdit_gauge_fontsize.text()
+            ),
+            "plot_single_value_fontsize": self._parse_optional_number(
+                self.lineEdit_single_value_fontsize.text()
+            ),
         }
 
     def keyPressEvent(self, a0: QKeyEvent) -> None:
@@ -526,6 +566,112 @@ class Settings_Window(Ui_settings_window, QDialog):
                 return False
         else:
             return True
+    def _parse_optional_number(self, text, is_float=False):
+    #Empty text -> None (use built-in default). Otherwise parse as int/float.
+        text = (text or "").strip()
+        if not text:
+            return None
+        try:
+            return float(text) if is_float else int(text)
+        except ValueError:
+            return None
+
+    def build_plots_tab(self, settings):
+        """Builds a new 'Plots' tab, letting the user override font sizes and
+        fit-line appearance for the X-Y plot, and font sizes for the Gauge
+        and Single Value plots. Empty fields keep the code's default."""
+        standard_pref = load_save_functions.standard_pref
+        tab_plots = QWidget()
+        layout = QGridLayout(tab_plots)
+        row = 0
+
+        def add_heading(text):
+            nonlocal row
+            label = QLabel(text)
+            font = label.font()
+            font.setBold(True)
+            label.setFont(font)
+            layout.addWidget(label, row, 0, 1, 2)
+            row += 1
+
+        def add_field(label_text, key, tooltip="", is_float=False):
+            nonlocal row
+            label = QLabel(label_text)
+            line_edit = QLineEdit()
+            value = settings.get(key, standard_pref.get(key))
+            line_edit.setText("" if value is None else str(value))
+            line_edit.setPlaceholderText("default")
+            if tooltip:
+                label.setToolTip(tooltip)
+                line_edit.setToolTip(tooltip)
+            layout.addWidget(label, row, 0)
+            layout.addWidget(line_edit, row, 1)
+            row += 1
+            return line_edit
+
+        def add_separator():
+            nonlocal row
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setFrameShadow(QFrame.Shadow.Sunken)
+            layout.addWidget(line, row, 0, 1, 2)
+            row += 1
+
+        add_heading("X-Y Plot")
+        self.lineEdit_plot_general_fontsize = add_field(
+            "General font size:",
+            "plot_xy_fontsize_general",
+            "Base font size for the X-Y plot. Used for any element below that is left empty.",
+        )
+        self.lineEdit_plot_checkbox_fontsize = add_field(
+            "Checkbox font size:",
+            "plot_xy_fontsize_checkbox",
+            "Font size of the checkboxes/labels in the plot's options panel.",
+        )
+        self.lineEdit_plot_axis_fontsize = add_field(
+            "Axis label font size:", "plot_xy_fontsize_axis_labels"
+        )
+        self.lineEdit_plot_title_fontsize = add_field(
+            "Title font size:", "plot_xy_fontsize_title"
+        )
+        self.lineEdit_plot_ticklabel_fontsize = add_field(
+            "Tick label font size:", "plot_xy_fontsize_ticklabels"
+        )
+        self.lineEdit_plot_legend_fontsize = add_field(
+            "Legend font size:", "plot_xy_fontsize_legend"
+        )
+        self.lineEdit_plot_fitresult_fontsize = add_field(
+            "Fit result font size:", "plot_xy_fontsize_fit_result"
+        )
+
+        label_linestyle = QLabel("Fit linestyle:")
+        self.comboBox_plot_fit_linestyle = QComboBox()
+        self.comboBox_plot_fit_linestyle.addItems(
+            ["default", "solid", "dashed", "dash-dot", "dash-dot-dot", "dotted"]
+        )
+        current_linestyle = settings.get(
+            "plot_xy_fit_linestyle", standard_pref.get("plot_xy_fit_linestyle", "")
+        )
+        self.comboBox_plot_fit_linestyle.setCurrentText(current_linestyle or "default")
+        layout.addWidget(label_linestyle, row, 0)
+        layout.addWidget(self.comboBox_plot_fit_linestyle, row, 1)
+        row += 1
+
+        self.lineEdit_plot_fit_linewidth = add_field(
+            "Fit line width:", "plot_xy_fit_linewidth"
+        )
+
+        add_separator()
+        add_heading("Gauge / Single Value Plot")
+        self.lineEdit_gauge_fontsize = add_field(
+            "Gauge plot font size:", "plot_gauge_fontsize"
+        )
+        self.lineEdit_single_value_fontsize = add_field(
+            "Single value plot font size:", "plot_single_value_fontsize"
+        )
+
+        layout.setRowStretch(row, 1)
+        self.tabWidget.addTab(tab_plots, "Plots")
 
 def hash_api_key(api_key):
     return hashlib.sha256(api_key.encode()).hexdigest()

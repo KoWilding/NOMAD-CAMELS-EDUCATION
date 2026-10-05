@@ -143,11 +143,10 @@ class Plot_Info:
         checkbox_manual_plot_position=False,
         checkbox_show_in_browser=False,
         browser_port=8050,
-        font_size=48,
+        font_size=None,
         unit="",
         min_value=None,
         max_value=None,
-        step=None,
         image_path="",
     ):
         # Initialize plot type and axis definitions
@@ -184,7 +183,6 @@ class Plot_Info:
 
         self.min_value = min_value
         self.max_value = max_value
-        self.step = step
 
         self.image_path = image_path
         # Generate a human-readable name based on available data.
@@ -728,19 +726,25 @@ class Single_Plot_Definer_SingleValue(Single_Plot_Definer):
         label_value = QLabel("Value / channel:", self)
         self.lineEdit_value = Variable_Box(self)
         self.lineEdit_value.setText(self.plot_data.y_axes["formula"][0])
+        self.lineEdit_value.setToolTip("The channel or formula whose value is shown. Right-click to insert channels/variables.")
 
         label_title = QLabel("Title:", self)
         self.lineEdit_title = QLineEdit(self)
         self.lineEdit_title.setText(self.plot_data.title)
+        self.lineEdit_title.setToolTip("Text shown above the value. If empty, the channel name is used instead.")
 
         label_font_size = QLabel("Font size:", self)
         self.lineEdit_font_size = QLineEdit(self)
-        self.lineEdit_font_size.setText(str(self.plot_data.font_size))
+        self.lineEdit_font_size.setText(
+            "" if self.plot_data.font_size is None else str(self.plot_data.font_size)
+        )
+        self.lineEdit_font_size.setPlaceholderText("default")
+        self.lineEdit_font_size.setToolTip("Font size (in points) used to display the value. Leave empty to use the global default from Settings.")
 
         label_unit = QLabel("Unit:", self)
-
         self.lineEdit_unit = QLineEdit(self)
         self.lineEdit_unit.setText(self.plot_data.unit)
+        self.lineEdit_unit.setToolTip("Unit shown after the value, e.g. 'V' or '°C'.")
 
         layout = QGridLayout()
         layout.addWidget(label_value, 0, 0)
@@ -759,12 +763,23 @@ class Single_Plot_Definer_SingleValue(Single_Plot_Definer):
 
         label_top_left_x = QLabel("Top Left X:", self)
         self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_x.setToolTip("Set the exact x coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_x.setToolTip("Minimum is 0 pixels")
+
         label_top_left_y = QLabel("Top Left Y:", self)
         self.lineEdit_top_left_y = QLineEdit(self)
+        label_top_left_y.setToolTip("Set the exact y coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_y.setToolTip("Minimum is 0 pixels")
+
         label_plot_width = QLabel("Plot Width:", self)
         self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_width.setToolTip("Set the width of the plot window in pixels (min 300)")
+        self.lineEdit_plot_width.setToolTip("Minimum is 300 pixels")
+
         label_plot_height = QLabel("Plot Height:", self)
         self.lineEdit_plot_height = QLineEdit(self)
+        label_plot_height.setToolTip("Set the height of the plot window in pixels (min 200)")
+        self.lineEdit_plot_height.setToolTip("Minimum is 200 pixels")
 
         layout.addWidget(label_top_left_x, 11, 0)
         layout.addWidget(self.lineEdit_top_left_x, 11, 1)
@@ -801,7 +816,7 @@ class Single_Plot_Definer_SingleValue(Single_Plot_Definer):
             raise ValueError("Title contains invalid characters (' \" ` \\).")
 
         self.plot_data.font_size = parse_int_field(
-            self.lineEdit_font_size.text(), 8, fallback=48
+            self.lineEdit_font_size.text(), 8, fallback=None
         )
 
         self.plot_data.top_left_x = parse_int_field(
@@ -847,34 +862,26 @@ class Single_Plot_Definer_Gauge(Single_Plot_Definer):
         label_value = QLabel("Value / channel:", self)
         self.lineEdit_value = Variable_Box(self)
         self.lineEdit_value.setText(self.plot_data.y_axes["formula"][0])
+        self.lineEdit_value.setToolTip("The channel or formula whose value is shown on the scale. Right-click to insert channels/variables.")
 
         label_title = QLabel("Title:", self)
         self.lineEdit_title = QLineEdit(self)
         self.lineEdit_title.setText(self.plot_data.title)
+        self.lineEdit_title.setToolTip("Text shown above the value. If empty, the channel name is used instead.")
 
         label_unit = QLabel("Unit:", self)
         self.lineEdit_unit = QLineEdit(self)
         self.lineEdit_unit.setText(self.plot_data.unit)
+        self.lineEdit_unit.setToolTip("Unit shown after the value, e.g. 'V' or '°C'.")
 
         label_min = QLabel("Min:", self)
         self.lineEdit_min = QLineEdit(self)
-        self.lineEdit_min.setText(
-            "" if self.plot_data.min_value is None else str(
-                self.plot_data.min_value)
-        )
+        self.lineEdit_min.setToolTip("Fixed minimum of the scale. Leave empty to scale automatically to the smallest value seen.")
 
         label_max = QLabel("Max :", self)
         self.lineEdit_max = QLineEdit(self)
-        self.lineEdit_max.setText(
-            "" if self.plot_data.max_value is None else str(
-                self.plot_data.max_value)
-        )
+        self.lineEdit_max.setToolTip("Fixed maximum of the scale. Leave empty to scale automatically to the largest value seen.")
 
-        label_step = QLabel("Schritt :", self)
-        self.lineEdit_step = QLineEdit(self)
-        self.lineEdit_step.setText(
-            "" if self.plot_data.step is None else str(self.plot_data.step)
-        )
 
         layout = QGridLayout()
         layout.addWidget(label_value, 0, 0)
@@ -887,8 +894,7 @@ class Single_Plot_Definer_Gauge(Single_Plot_Definer):
         layout.addWidget(self.lineEdit_min, 2, 1)
         layout.addWidget(label_max, 2, 2)
         layout.addWidget(self.lineEdit_max, 2, 3)
-        layout.addWidget(label_step, 3, 0)
-        layout.addWidget(self.lineEdit_step, 3, 1)
+
 
         line = QFrame(self)
         line.setFrameShape(QFrame.Shape.HLine)
@@ -897,12 +903,23 @@ class Single_Plot_Definer_Gauge(Single_Plot_Definer):
 
         label_top_left_x = QLabel("Top Left X:", self)
         self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_x.setToolTip("Set the exact x coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_x.setToolTip("Minimum is 0 pixels")
+
         label_top_left_y = QLabel("Top Left Y:", self)
         self.lineEdit_top_left_y = QLineEdit(self)
+        label_top_left_y.setToolTip("Set the exact y coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_y.setToolTip("Minimum is 0 pixels")
+
         label_plot_width = QLabel("Plot Width:", self)
         self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_width.setToolTip("Set the width of the plot window in pixels (min 300)")
+        self.lineEdit_plot_width.setToolTip("Minimum is 300 pixels")
+
         label_plot_height = QLabel("Plot Height:", self)
         self.lineEdit_plot_height = QLineEdit(self)
+        label_plot_height.setToolTip("Set the height of the plot window in pixels (min 200)")
+        self.lineEdit_plot_height.setToolTip("Minimum is 200 pixels")
 
         layout.addWidget(label_top_left_x, 11, 0)
         layout.addWidget(self.lineEdit_top_left_x, 11, 1)
@@ -946,8 +963,7 @@ class Single_Plot_Definer_Gauge(Single_Plot_Definer):
             self.lineEdit_min.text())
         self.plot_data.max_value = self._parse_optional_float(
             self.lineEdit_max.text())
-        self.plot_data.step = self._parse_optional_float(
-            self.lineEdit_step.text())
+        
 
         if (
             self.plot_data.min_value is not None
@@ -1000,14 +1016,19 @@ class Single_Plot_Definer_Image_Display(Single_Plot_Definer):
         super().__init__(plot_data, parent)
 
         label_path = QLabel("Image path:", self)
-        self.lineEdit_path = QLineEdit(self)
+        self.lineEdit_path = QLineEdit(self)  # oder Variable_Box, falls du das übernommen hast
         self.lineEdit_path.setText(self.plot_data.image_path)
+        self.lineEdit_path.setToolTip("Full path to the image file to display (e.g. a .png).")
+
         self.pushButton_browse = QPushButton("Browse...", self)
+        self.pushButton_browse.setToolTip("Open a file dialog to select an image.")
         self.pushButton_browse.clicked.connect(self.browse_file)
+
 
         label_title = QLabel("Title:", self)
         self.lineEdit_title = QLineEdit(self)
         self.lineEdit_title.setText(self.plot_data.title)
+        self.lineEdit_title.setToolTip("Text shown above the image. If empty, no title is shown.")
 
         layout = QGridLayout()
         layout.addWidget(label_path, 0, 0)
@@ -1023,12 +1044,24 @@ class Single_Plot_Definer_Image_Display(Single_Plot_Definer):
 
         label_top_left_x = QLabel("Top Left X:", self)
         self.lineEdit_top_left_x = QLineEdit(self)
+        label_top_left_x.setToolTip("Set the exact x coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_x.setToolTip("Minimum is 0 pixels")
+
         label_top_left_y = QLabel("Top Left Y:", self)
         self.lineEdit_top_left_y = QLineEdit(self)
+        label_top_left_y.setToolTip("Set the exact y coordinate of the top left corner of the plot window in pixels (min 0)")
+        self.lineEdit_top_left_y.setToolTip("Minimum is 0 pixels")
+
         label_plot_width = QLabel("Plot Width:", self)
         self.lineEdit_plot_width = QLineEdit(self)
+        label_plot_width.setToolTip("Set the width of the plot window in pixels (min 300)")
+        self.lineEdit_plot_width.setToolTip("Minimum is 300 pixels")
+
         label_plot_height = QLabel("Plot Height:", self)
         self.lineEdit_plot_height = QLineEdit(self)
+        label_plot_height.setToolTip("Set the height of the plot window in pixels (min 200)")
+        self.lineEdit_plot_height.setToolTip("Minimum is 200 pixels")
+
 
         layout.addWidget(label_top_left_x, 11, 0)
         layout.addWidget(self.lineEdit_top_left_x, 11, 1)
@@ -1040,9 +1073,9 @@ class Single_Plot_Definer_Image_Display(Single_Plot_Definer):
         layout.addWidget(self.lineEdit_plot_height, 12, 3)
 
         self.setLayout(layout)
+        
         self.load_data()
         self.plot_data.update_name()
-        self.livePlot = lambda name, doc: None
 
     def browse_file(self):
         path, _ = QFileDialog.getOpenFileName(

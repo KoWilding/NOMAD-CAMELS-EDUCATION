@@ -237,10 +237,10 @@ def plot_creator(
             value_expr = plot.y_axes["formula"][0] if plot.y_axes["formula"] else ""
             min_val = plot.min_value
             max_val = plot.max_value
-            step_val = plot.step
-            plot_string += f'\tplot_{i} = gauge_plot.Gauge_Plot("{value_expr}", title="{plot.title}", stream_name=stream, namespace=namespace, unit="{plot.unit}", min_value={min_val}, max_value={max_val}, step={step_val}, top_left_x="{plot.top_left_x}", top_left_y="{plot.top_left_y}", plot_width="{plot.plot_width}", plot_height="{plot.plot_height}", multi_stream={multi_stream})\n'
+            plot_string += f'\tplot_{i} = gauge_plot.Gauge_Plot("{value_expr}", title="{plot.title}", stream_name=stream, namespace=namespace, unit="{plot.unit}", min_value={min_val}, max_value={max_val}, top_left_x="{plot.top_left_x}", top_left_y="{plot.top_left_y}", plot_width="{plot.plot_width}", plot_height="{plot.plot_height}", multi_stream={multi_stream})\n'
             plot_string += f"\tplots.append(plot_{i})\n"
             plot_string += f"\tplot_{i}.show()\n"
+
 
         elif plot.plt_type == "Image Display":
             plotting = True

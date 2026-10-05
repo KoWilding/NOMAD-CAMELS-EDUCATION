@@ -152,6 +152,21 @@ standard_pref = {
     "new_file_every_x_hours": False,
     "new_file_every_x_hours_value": 24,
     "nested_data": True,
+
+    #Settings for Plots
+     "nested_data": True,
+    # --- Plot appearance (all None/"" = use the code's built-in default) ---
+    "plot_xy_fontsize_general": None,
+    "plot_xy_fontsize_checkbox": None,
+    "plot_xy_fontsize_axis_labels": None,
+    "plot_xy_fontsize_title": None,
+    "plot_xy_fontsize_ticklabels": None,
+    "plot_xy_fontsize_legend": None,
+    "plot_xy_fontsize_fit_result": None,
+    "plot_xy_fit_linestyle": "",
+    "plot_xy_fit_linewidth": None,
+    "plot_gauge_fontsize": None,
+    "plot_single_value_fontsize": None,
 }
 
 

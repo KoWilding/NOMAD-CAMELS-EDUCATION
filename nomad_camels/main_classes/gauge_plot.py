@@ -14,6 +14,7 @@ from nomad_camels import graphics
 
 from PySide6.QtCore import Signal as pySignal
 
+from nomad_camels.utility import variables_handling 
 
 def _nice_number(value, round_result=False):
     """Return a round number close to value (used for tick spacing)."""
@@ -84,13 +85,13 @@ def _minor_divisions(step):
 class Scale_Widget(QWidget):
     """Draws a horizontal scale with tick marks and a triangular marker for
     the current value. Automatically extends its range to fit seen values,
-    unless manual min/max are given."""
+    unless manual min/max are given. Tick spacing is always computed
+    automatically."""
 
-    def __init__(self, parent=None, min_value=None, max_value=None, step=None):
+    def __init__(self, parent=None, min_value=None, max_value=None):
         super().__init__(parent=parent)
         self.manual_min = min_value
         self.manual_max = max_value
-        self.manual_step = step
         self.seen_min = min_value if min_value is not None else 0.0
         self.seen_max = max_value if max_value is not None else 1.0
         self.value = None
@@ -126,13 +127,14 @@ class Scale_Widget(QWidget):
 
         min_val, max_val = self.get_bounds()
 
-        if self.manual_step:
-            step = self.manual_step
-            nice_min = np.floor(min_val / step) * step
-            nice_max = np.ceil(max_val / step) * step
-            ticks = list(np.arange(nice_min, nice_max + step * 0.5, step))
-        else:
-            ticks, nice_min, nice_max, step = _nice_ticks(min_val, max_val)
+        ticks, computed_nice_min, computed_nice_max, step = _nice_ticks(
+            min_val, max_val
+        )
+
+        # Feste Grenzen bleiben exakt erhalten - nur die nicht gesetzte Seite
+        # wird für "schöne" Tick-Abstände automatisch gerundet.
+        nice_min = self.manual_min if self.manual_min is not None else computed_nice_min
+        nice_max = self.manual_max if self.manual_max is not None else computed_nice_max
 
         if nice_max == nice_min:
             nice_max = nice_min + 1
@@ -220,7 +222,6 @@ class Gauge_Plot(QWidget):
         unit="",
         min_value=None,
         max_value=None,
-        step=None,
         title_font_size=None,
         top_left_x=None,
         top_left_y=None,
@@ -229,6 +230,11 @@ class Gauge_Plot(QWidget):
         **kwargs,
     ):
         super().__init__(parent=parent)
+
+        global_font_size = variables_handling.preferences.get("plot_gauge_fontsize")
+        if global_font_size and title_font_size is None:
+            title_font_size = global_font_size
+
         self.name_label = QLabel(title or value)
         self.name_label.setAlignment(Qt.AlignCenter)
         name_font = QFont()
@@ -241,9 +247,9 @@ class Gauge_Plot(QWidget):
         value_font.setPointSize((title_font_size or 14) + 4)
         value_font.setBold(True)
         self.value_label.setFont(value_font)
-
+        
         self.scale_widget = Scale_Widget(
-            self, min_value=min_value, max_value=max_value, step=step
+            self, min_value=min_value, max_value=max_value
         )
 
         self.livePlot = Live_Gauge(
@@ -273,6 +279,10 @@ class Gauge_Plot(QWidget):
             QIcon(str(resources.files(graphics) / "CAMELS_Icon.png")))
         self.stream_name = stream_name
         place_widget(self, top_left_x, top_left_y, plot_width, plot_height)
+
+        global_font_size = variables_handling.preferences.get("plot_gauge_fontsize")
+        if global_font_size and title_font_size is None:
+            title_font_size = global_font_size
 
     def show_again(self):
         if not self.isVisible():
